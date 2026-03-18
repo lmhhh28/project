@@ -9,7 +9,6 @@ import java.awt.*;
  */
 public class ControlPanel extends JPanel {
     private AppController controller;
-    private JTextArea outputArea;
 
     // Form fields for City
     private JTextField cityIdField = new JTextField(5);
@@ -100,15 +99,6 @@ public class ControlPanel extends JPanel {
         algPanel.add(btnClearHi);
         this.add(algPanel);
 
-        // 5. Output Area
-        outputArea = new JTextArea();
-        outputArea.setEditable(false);
-        outputArea.setLineWrap(true);
-        outputArea.setWrapStyleWord(true);
-        JScrollPane scrollPane = new JScrollPane(outputArea);
-        scrollPane.setBorder(new TitledBorder("系统日志输出"));
-        this.add(scrollPane);
-
         // Set up Listeners
         btnLoad.addActionListener(e -> {
             JFileChooser chooser = new JFileChooser(".");
@@ -196,9 +186,7 @@ public class ControlPanel extends JPanel {
     }
 
     public void log(String msg) {
-        outputArea.append("- " + msg + "\n");
-        // Auto scroll to bottom
-        outputArea.setCaretPosition(outputArea.getDocument().getLength());
+        controller.log(msg);
     }
     
     public void fillCityForm(int id, String name, int x, int y, String desc) {

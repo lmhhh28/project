@@ -7,6 +7,8 @@ import com.citygraph.model.GraphState;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.io.IOException;
 
 /**
@@ -17,6 +19,7 @@ public class MainFrame extends JFrame implements AppController {
     private GraphState graph;
     private GraphCanvas canvas;
     private ControlPanel controlPanel;
+    private LogWindow logWindow;
 
     public MainFrame() {
         super("城市通信网络规划系统");
@@ -28,18 +31,33 @@ public class MainFrame extends JFrame implements AppController {
 
         this.canvas = new GraphCanvas(graph, this);
         this.controlPanel = new ControlPanel(this);
+        
+        this.logWindow = new LogWindow(this);
 
         this.add(canvas, BorderLayout.CENTER);
         this.add(controlPanel, BorderLayout.EAST);
+        
+        // Show LogWindow together with MainFrame
+        this.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                logWindow.setVisible(true);
+            }
+        });
     }
 
     private void refreshCanvas() {
         canvas.repaint();
     }
+    
+    @Override
+    public void log(String msg) {
+        logWindow.log(msg);
+    }
 
     @Override
     public void onCityClicked(City city) {
-        controlPanel.log("已点击: " + city.toString());
+        this.log("已点击: " + city.toString());
         controlPanel.fillCityForm(city.getId(), city.getName(), city.getX(), city.getY(), city.getDescription());
     }
 
@@ -47,7 +65,7 @@ public class MainFrame extends JFrame implements AppController {
     public void addCity(int id, String name, int x, int y, String desc) {
         City c = new City(id, name, x, y, desc);
         graph.addCity(c);
-        controlPanel.log("已添加城市: " + c.getName());
+        this.log("已添加城市: " + c.getName());
         refreshCanvas();
     }
 
@@ -61,10 +79,10 @@ public class MainFrame extends JFrame implements AppController {
             c.setDescription(desc);
             // Recalculate edge lengths matching this city, if it moved
             graph.recalculateEdgeLengths(id);
-            controlPanel.log("已更新城市: " + name);
+            this.log("已更新城市: " + name);
             refreshCanvas();
         } else {
-            controlPanel.log("更新失败，未找到城市ID: " + id);
+            this.log("更新失败，未找到城市ID: " + id);
         }
     }
 
@@ -72,27 +90,27 @@ public class MainFrame extends JFrame implements AppController {
     public void removeCity(int id) {
         if (graph.getCity(id) != null) {
             graph.removeCity(id);
-            controlPanel.log("已删除城市ID: " + id);
+            this.log("已删除城市ID: " + id);
             refreshCanvas();
         } else {
-            controlPanel.log("删除失败，未找到城市ID: " + id);
+            this.log("删除失败，未找到城市ID: " + id);
         }
     }
 
     @Override
     public void addEdge(int sourceId, int targetId) {
         if (graph.addEdge(new com.citygraph.model.Edge(sourceId, targetId))) {
-            controlPanel.log("已添加线路: " + sourceId + " <-> " + targetId);
+            this.log("已添加线路: " + sourceId + " <-> " + targetId);
             refreshCanvas();
         } else {
-            controlPanel.log("添加线路失败。请检查ID是否正确或线路已存在。");
+            this.log("添加线路失败。请检查ID是否正确或线路已存在。");
         }
     }
 
     @Override
     public void removeEdge(int sourceId, int targetId) {
         graph.removeEdge(sourceId, targetId);
-        controlPanel.log("已尝试删除线路: " + sourceId + " <-> " + targetId);
+        this.log("已尝试删除线路: " + sourceId + " <-> " + targetId);
         refreshCanvas();
     }
 
@@ -108,9 +126,9 @@ public class MainFrame extends JFrame implements AppController {
             
             this.revalidate();
             refreshCanvas();
-            controlPanel.log("已从文件加载图数据：" + path);
+            this.log("已从文件加载图数据：" + path);
         } catch (IOException e) {
-            controlPanel.log("加载文件错误: " + e.getMessage());
+            this.log("加载文件错误: " + e.getMessage());
         }
     }
 
@@ -118,9 +136,9 @@ public class MainFrame extends JFrame implements AppController {
     public void saveToFile(String path) {
         try {
             FileManager.saveGraph(graph, path);
-            controlPanel.log("已保存图数据到：" + path);
+            this.log("已保存图数据到：" + path);
         } catch (IOException e) {
-            controlPanel.log("保存文件错误: " + e.getMessage());
+            this.log("保存文件错误: " + e.getMessage());
         }
     }
 
@@ -128,34 +146,34 @@ public class MainFrame extends JFrame implements AppController {
     public void clearGraph() {
         graph.clear();
         refreshCanvas();
-        controlPanel.log("画布与图数据已清空。");
+        this.log("画布与图数据已清空。");
     }
 
     @Override
     public void checkConnectivityAndFix() {
         clearHighlights();
-        AlgorithmEngine.checkConnectivityAndFix(graph, msg -> controlPanel.log(msg));
+        AlgorithmEngine.checkConnectivityAndFix(graph, msg -> this.log(msg));
         refreshCanvas();
     }
 
     @Override
     public void findShortestPath(int sourceId) {
         clearHighlights();
-        AlgorithmEngine.findShortestPath(graph, sourceId, msg -> controlPanel.log(msg));
+        AlgorithmEngine.findShortestPath(graph, sourceId, msg -> this.log(msg));
         refreshCanvas();
     }
 
     @Override
     public void solveTSP(int startCityId, boolean returnToStart) {
         clearHighlights();
-        AlgorithmEngine.solveTSP(graph, startCityId, returnToStart, msg -> controlPanel.log(msg));
+        AlgorithmEngine.solveTSP(graph, startCityId, returnToStart, msg -> this.log(msg));
         refreshCanvas();
     }
 
     @Override
     public void buildSteinerTree() {
         clearHighlights();
-        AlgorithmEngine.buildSteinerTree(graph, msg -> controlPanel.log(msg));
+        AlgorithmEngine.buildSteinerTree(graph, msg -> this.log(msg));
         refreshCanvas();
     }
 

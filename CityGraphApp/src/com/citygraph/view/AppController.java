@@ -24,4 +24,6 @@ public interface AppController {
     
     void clearHighlights();
     void clearGraph();
+    
+    void log(String msg);
 }

@@ -53,6 +53,7 @@ class Edge {
 class GraphState {
     Map<Integer, City> cities;               // 城市集合 (ID -> City)
     List<Edge> edges;                        // 边集合
+    List<Edge> backedUpEdges;                // 原生拓扑边备份点 (防御 Steiner 等毁灭性算法)
     Map<Integer, List<Edge>> adjacencyList;  // 邻接表映射 (ID -> 与之相连的所有边)
 }
 ```
@@ -91,7 +92,7 @@ public static GraphState loadGraph(String path) throws IOException {
 ---
 
 ### 3、 编辑地点、道路信息
-系统提供了基于 Java Swing 实现的图形化操作界面。界面采用“左侧地图画布 + 右侧操作与表单控制台”的结构。
+系统提供了基于 Java Swing 实现的图形化操作界面。界面采用“左侧地图画布 + 右侧操作与表单控制台 + 独立系统日志输出浮动窗口”的结构。
 - **修改**：在右侧表单输入编号、名称、坐标、简介，点击对应的按钮更新内存中的图结构（`GraphState`）。
 - **关联性维护**：若修改了某个城市的坐标系位置，底层算法会自动触发 `recalculateEdgeLengths` 方法，遍历该城市的邻接表并重新计算相连边的欧几里得距离，确保通信长度数据的正确性。
 - **坐标系与可视化增强**：为了符合正常的数学与地理直觉，系统底层的绘图画布（Canvas）重构了像素映射逻辑，将 `(0,0)` 原点平移至屏幕中心，翻转了 Y 轴（即向上为正方向）。同时，底部增加了带有数值刻度的均匀网格线（Grid Lines）绘制层，以提供极佳的节点距评阅可视化体验。
@@ -203,6 +204,7 @@ public static void findShortestPath(GraphState graph, int sourceId) {
 1. **并发集合与渲染状态的不同步 (ConcurrentModificationException)**：在开发编辑及施泰纳树重构模块中，直接清空旧网络边集又同时操作图连通结构会导致 Swing 绘制线程的越界迭代异常。解决办法是：建立暂存清单（toRemove），待全部分离后安全销毁，并增加强制的邻接表重建调用来恢复数据一致性。
 2. **高频绘制带来的卡顿优化**：在大用例（超200点）下，基于 Java底层库 `Graphics2D` 遍历庞大的边表渲染会带来性能阻滞。在开发调试中引入了可视渲染屏蔽（Clipping Bounds），并让算法脱离控制器形成单一函数体，确保 UI 更新在逻辑变更结束一次性调用 `Canvas.repaint()`。
 3. **交互与国际化体验 (HiDPI & 本地化)**：将整个界面深度汉化，并通过注入 `sun.java2d.dpiaware` 等系统级参数，强行开启底层字体的抗锯齿与高分屏缩放适配，确保在各类 4k 屏幕下的文本都不会出现模糊和坐标错位。
-4. **体会与反思**：本次课程设计从最初只是简单存储顶点和线段的 Demo，逐步延展到了涉及 BFS、并查集、Dijkstra、Floyd-Warshall 乃至更高阶的 TSP 近似算子以及 Steiner 附加网络重构工程。项目开发极大地深化了我对图论经典算法工程化落地的了解。在实现跨端窗体程序时还掌握并应用了 MVC 解耦模式去组织业务代码，收益良多。
+4. **性能基准验证与容错 (Benchmark & Stability)**：通过自研 `Benchmark.java` 实行无头压测，从 $N=50$ 至 $N=500$ 级别的点边生成环境中验证所有算法的并发稳定。针对 Steiner 树等毁坏性质测算，增配了防丢失的快照 `backedUpEdges` 留痕池，使得高光清理触发时能实现毫秒级的纯拓扑精准恢复。
+5. **体会与反思**：本次课程设计从最初只是简单存储顶点和线段的 Demo，逐步延展到了涉及 BFS、并查集、Dijkstra、Floyd-Warshall 乃至更高阶的 TSP 近似算子以及 Steiner 附加网络重构工程。项目开发极大地深化了我对图论经典算法工程化落地的了解。在实现跨端窗体程序时还掌握并应用了 MVC 解耦模式去组织业务代码，收益良多。
 
 *(严禁抄袭声明完毕)*

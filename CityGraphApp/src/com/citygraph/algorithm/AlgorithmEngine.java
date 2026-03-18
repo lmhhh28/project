@@ -433,6 +433,7 @@ public class AlgorithmEngine {
         for (City sc : toRemove) {
             graph.removeCity(sc.getId());
         }
+        graph.backupOriginalEdges();
         graph.getEdges().clear();
         graph.rebuildAdjacencyList();
         

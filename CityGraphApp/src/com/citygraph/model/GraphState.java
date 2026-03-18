@@ -9,6 +9,9 @@ public class GraphState {
     private Map<Integer, City> cities;
     private List<Edge> edges;
     
+    // Backup for original edges destroyed during Steiner generation
+    private List<Edge> backedUpEdges;
+    
     // For fast retrieval of adjacent edges
     private Map<Integer, List<Edge>> adjacencyList;
     
@@ -17,6 +20,7 @@ public class GraphState {
     public GraphState() {
         this.cities = new HashMap<>();
         this.edges = new ArrayList<>();
+        this.backedUpEdges = new ArrayList<>();
         this.adjacencyList = new HashMap<>();
     }
 
@@ -111,8 +115,28 @@ public class GraphState {
         for (Edge e : edges) {
             e.setHighlighted(false);
         }
+        
+        // Restore backed up edges if they exist
+        if (!backedUpEdges.isEmpty()) {
+            edges.addAll(backedUpEdges);
+            backedUpEdges.clear();
+        }
+        
+        // Removed Steiner cities if any
+        cities.entrySet().removeIf(entry -> entry.getValue().getName().startsWith("Steiner_"));
+        
         // Repopulate adjacency lists completely to avoid stale refs
         rebuildAdjacencyList();
+    }
+    
+    public void backupOriginalEdges() {
+        if (backedUpEdges.isEmpty()) {
+            for (Edge e : edges) {
+                if (!e.isSteiner() && !e.isVirtual()) {
+                    backedUpEdges.add(e);
+                }
+            }
+        }
     }
     
     public void clearHighlightedEdges() {
@@ -162,6 +186,7 @@ public class GraphState {
     public void clear() {
         cities.clear();
         edges.clear();
+        backedUpEdges.clear();
         adjacencyList.clear();
         nextCityId = 1;
     }
