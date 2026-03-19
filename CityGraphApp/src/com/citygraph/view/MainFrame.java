@@ -109,15 +109,19 @@ public class MainFrame extends JFrame implements AppController {
 
     @Override
     public void removeEdge(int sourceId, int targetId) {
-        graph.removeEdge(sourceId, targetId);
-        this.log("已尝试删除线路: " + sourceId + " <-> " + targetId);
+        if (graph.removeEdge(sourceId, targetId)) {
+            this.log("已删除线路: " + sourceId + " <-> " + targetId);
+        } else {
+            this.log("删除线路失败：未找到 " + sourceId + " <-> " + targetId + " 的线路。");
+        }
         refreshCanvas();
     }
 
     @Override
     public void loadFromFile(String path) {
         try {
-            graph = FileManager.loadGraph(path);
+            FileManager.LoadResult result = FileManager.loadGraph(path);
+            graph = result.graph;
             canvas = new GraphCanvas(graph, this);
             
             this.getContentPane().removeAll();
@@ -127,6 +131,9 @@ public class MainFrame extends JFrame implements AppController {
             this.revalidate();
             refreshCanvas();
             this.log("已从文件加载图数据：" + path);
+            for (String warning : result.warnings) {
+                this.log("⚠ " + warning);
+            }
         } catch (IOException e) {
             this.log("加载文件错误: " + e.getMessage());
         }

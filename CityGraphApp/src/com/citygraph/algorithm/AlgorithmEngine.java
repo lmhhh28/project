@@ -15,8 +15,10 @@ public class AlgorithmEngine {
     // Helper: Union-Find for Kruskal's
     private static class DisjointSet {
         int[] parent;
+        int[] rank;
         public DisjointSet(int size) {
             parent = new int[size];
+            rank = new int[size];
             for (int i = 0; i < size; i++) parent[i] = i;
         }
         public int find(int i) {
@@ -26,7 +28,11 @@ public class AlgorithmEngine {
         public void union(int i, int j) {
             int rootI = find(i);
             int rootJ = find(j);
-            if (rootI != rootJ) parent[rootI] = rootJ;
+            if (rootI != rootJ) {
+                if (rank[rootI] < rank[rootJ]) parent[rootI] = rootJ;
+                else if (rank[rootI] > rank[rootJ]) parent[rootJ] = rootI;
+                else { parent[rootJ] = rootI; rank[rootI]++; }
+            }
         }
     }
 
@@ -154,7 +160,7 @@ public class AlgorithmEngine {
                 int v = e.getOtherId(u);
                 int weight = e.getLength();
                 
-                if (dist.get(u) + weight < dist.get(v)) {
+                if (dist.get(u) != Integer.MAX_VALUE && dist.get(u) + weight < dist.get(v)) {
                     dist.put(v, dist.get(u) + weight);
                     parent.put(v, u);
                     pq.add(new int[]{v, dist.get(v)});
@@ -186,7 +192,9 @@ public class AlgorithmEngine {
             int curr = targetId;
             while (curr != sourceId) {
                 path.add(curr);
-                curr = parent.get(curr);
+                Integer p = parent.get(curr);
+                if (p == null) break; // defensive: broken path
+                curr = p;
             }
             path.add(sourceId);
             Collections.reverse(path);
@@ -243,7 +251,7 @@ public class AlgorithmEngine {
             idToIndex.put(cities.get(i).getId(), i);
             indexToId.put(i, cities.get(i).getId());
             for (int j = 0; j < n; j++) {
-                dist[i][j] = (i == j) ? 0 : 99999999;
+                dist[i][j] = (i == j) ? 0 : Integer.MAX_VALUE / 2;
                 next[i][j] = -1;
             }
         }
@@ -272,7 +280,7 @@ public class AlgorithmEngine {
         // Check connectivity
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < n; j++) {
-                if (dist[i][j] > 10000000) {
+                if (dist[i][j] >= Integer.MAX_VALUE / 2) {
                     logger.accept("Graph is not fully connected. TSP cannot reach all cities.");
                     return;
                 }
@@ -286,23 +294,37 @@ public class AlgorithmEngine {
         
         int startIdx = idToIndex.get(startId);
         
-        if (n <= 12) {
-            // Exact solver using Depth First Search / Backtracking
-            logger.accept("Running precise TSP solver (N <= 12)...");
-            long[] minLength = {Long.MAX_VALUE};
+        if (n <= 20) {
+            // Exact solver using Dynamic Programming with Bitmasking
+            logger.accept("Running precise TSP solver DP (N <= 20)...");
+            
+            long[][] memo = new long[n][1 << n];
+            int[][] dpParent = new int[n][1 << n];
+            for (int i = 0; i < n; i++) {
+                Arrays.fill(memo[i], -1);
+            }
+            
+            long minLength = tspDp(startIdx, 1 << startIdx, n, dist, memo, dpParent, startIdx, returnToStart);
+            
             List<Integer> bestIndexList = new ArrayList<>();
-            List<Integer> currentPath = new ArrayList<>();
-            boolean[] visited = new boolean[n];
+            int curr = startIdx;
+            int mask = 1 << startIdx;
+            bestIndexList.add(curr);
             
-            currentPath.add(startIdx);
-            visited[startIdx] = true;
+            while (Integer.bitCount(mask) < n) {
+                int nxt = dpParent[curr][mask];
+                bestIndexList.add(nxt);
+                mask |= (1 << nxt);
+                curr = nxt;
+            }
+            if (returnToStart) {
+                bestIndexList.add(startIdx);
+            }
             
-            tspExactDfs(startIdx, 1, 0, visited, currentPath, bestIndexList, minLength, dist, n, startIdx, returnToStart);
-            
-            outputTspResult(bestIndexList, minLength[0], next, indexToId, graph, startId, returnToStart, logger);
+            outputTspResult(bestIndexList, minLength, next, indexToId, graph, startId, returnToStart, logger);
         } else {
-            // Heuristic Solver (Nearest Neighbor + optionally 2-Opt)
-            logger.accept("Running heuristic TSP solver (N > 12)...");
+            // Heuristic Solver (Nearest Neighbor + 2-Opt)
+            logger.accept("Running heuristic TSP solver (N > 20)...");
             
             boolean[] visited = new boolean[n];
             List<Integer> path = new ArrayList<>();
@@ -310,7 +332,6 @@ public class AlgorithmEngine {
             int curr = startIdx;
             path.add(curr);
             visited[curr] = true;
-            long totalLen = 0;
             
             for (int step = 1; step < n; step++) {
                 int nextCity = -1;
@@ -323,49 +344,70 @@ public class AlgorithmEngine {
                 }
                 visited[nextCity] = true;
                 path.add(nextCity);
-                totalLen += minD;
                 curr = nextCity;
             }
             
             if (returnToStart) {
-                totalLen += dist[curr][startIdx];
                 path.add(startIdx);
+            }
+            
+            // 2-Opt Local Search
+            boolean improved = true;
+            while (improved) {
+                improved = false;
+                int size = path.size();
+                for (int i = 1; i < size - 2; i++) {
+                    for (int j = i + 1; j < size - 1; j++) {
+                        int u1 = path.get(i - 1), v1 = path.get(i);
+                        int u2 = path.get(j), v2 = (j + 1 < size) ? path.get(j + 1) : -1;
+                        
+                        long oldDist = dist[u1][v1] + (v2 != -1 ? dist[u2][v2] : 0);
+                        long newDist = dist[u1][u2] + (v2 != -1 ? dist[v1][v2] : 0);
+                        
+                        if (newDist < oldDist) {
+                            int left = i, right = j;
+                            while (left < right) {
+                                int temp = path.get(left);
+                                path.set(left, path.get(right));
+                                path.set(right, temp);
+                                left++; right--;
+                            }
+                            improved = true;
+                        }
+                    }
+                }
+            }
+            
+            long totalLen = 0;
+            for (int i = 0; i < path.size() - 1; i++) {
+                totalLen += dist[path.get(i)][path.get(i + 1)];
             }
             
             outputTspResult(path, totalLen, next, indexToId, graph, startId, returnToStart, logger);
         }
     }
     
-    private static void tspExactDfs(int curr, int count, long currentLen, boolean[] visited, 
-                                    List<Integer> currPath, List<Integer> bestPath, 
-                                    long[] minLen, int[][] dist, int n, int startIdx, boolean returnToStart) {
-        if (currentLen >= minLen[0]) return; // branch pruning
+    private static long tspDp(int u, int mask, int n, int[][] dist, long[][] memo, int[][] parent, int startIdx, boolean returnToStart) {
+        if (mask == (1 << n) - 1) {
+            return returnToStart ? dist[u][startIdx] : 0;
+        }
+        if (memo[u][mask] != -1) return memo[u][mask];
         
-        if (count == n) {
-            long finalLen = currentLen;
-            if (returnToStart) {
-                finalLen += dist[curr][startIdx];
-            }
-            if (finalLen < minLen[0]) {
-                minLen[0] = finalLen;
-                bestPath.clear();
-                bestPath.addAll(currPath);
-                if (returnToStart) {
-                    bestPath.add(startIdx);
+        long ans = Long.MAX_VALUE / 2;
+        int bestNext = -1;
+        
+        for (int v = 0; v < n; v++) {
+            if ((mask & (1 << v)) == 0) {
+                long res = dist[u][v] + tspDp(v, mask | (1 << v), n, dist, memo, parent, startIdx, returnToStart);
+                if (res < ans) {
+                    ans = res;
+                    bestNext = v;
                 }
             }
-            return;
         }
         
-        for (int i = 0; i < n; i++) {
-            if (!visited[i]) {
-                visited[i] = true;
-                currPath.add(i);
-                tspExactDfs(i, count + 1, currentLen + dist[curr][i], visited, currPath, bestPath, minLen, dist, n, startIdx, returnToStart);
-                visited[i] = false;
-                currPath.remove(currPath.size() - 1);
-            }
-        }
+        parent[u][mask] = bestNext;
+        return memo[u][mask] = ans;
     }
     
     private static void outputTspResult(List<Integer> rawPathIndices, long totalLen, int[][] next, 
@@ -417,13 +459,8 @@ public class AlgorithmEngine {
         }
         
         logger.accept("Building Steiner Tree approximation...");
-        // Fast approach: 
-        // 1. Build MST of all geometric cities
-        // 2. Iterate adjacent pairs of edges in the MST
-        // 3. If the angle is < 120, swap the center point with a Fermat point and create new auxiliary node.
         
-        // Let's clear ALL edges first since it's a "from blank" approach
-        // To avoid concurrent modification exceptions, we first remove cities and edges cleanly
+        // Clean up any previous Steiner cities
         List<City> toRemove = new ArrayList<>();
         for (City c : cities) {
             if (c.getName().startsWith("Steiner_")) {
@@ -435,83 +472,84 @@ public class AlgorithmEngine {
         }
         graph.backupOriginalEdges();
         graph.getEdges().clear();
+        // Also refresh edge index via rebuildAdjacencyList().
         graph.rebuildAdjacencyList();
         
-        // Retake clean geometric cities
-        cities = new ArrayList<>(graph.getCities());
-        List<Edge> mstEdges = computeGeometricMST(cities);
-        
-        int steinerIdCounter = graph.getNextCityId();
-        boolean improved;
-        
-        do {
-            improved = false;
-            // Find a vertex with degree 2 or 3 in the MST (we'll just test 2 edges at a time)
-            Map<Integer, List<Edge>> adj = buildLocalAdjacencyList(cities, mstEdges);
+        try {
+            // Retake clean geometric cities
+            cities = new ArrayList<>(graph.getCities());
+            List<Edge> mstEdges = computeGeometricMST(cities);
             
-            outer:
-            for (City center : cities) {
-                List<Edge> edges = adj.get(center.getId());
-                if (edges.size() >= 2) {
-                    // Try pairs of edges
-                    for (int i = 0; i < edges.size(); i++) {
-                        for (int j = i + 1; j < edges.size(); j++) {
-                            Edge e1 = edges.get(i);
-                            Edge e2 = edges.get(j);
-                            
-                            City p1 = graph.getCity(e1.getOtherId(center.getId()));
-                            City p2 = graph.getCity(e2.getOtherId(center.getId()));
-                            
-                            // Check angle at center
-                            double angle = calculateAngle(p1, center, p2);
-                            if (angle < 120.0 && angle > 1.0) {  // 1.0 margin to avoid colinearity bugs
-                                // Candidate for Fermat point optimization
-                                int[] fermatPoint = computeFermatPoint(p1, center, p2);
+            int steinerIdCounter = graph.getNextCityId();
+            boolean improved;
+            
+            do {
+                improved = false;
+                Map<Integer, List<Edge>> adj = buildLocalAdjacencyList(cities, mstEdges);
+                
+                outer:
+                for (City center : cities) {
+                    List<Edge> edges = adj.get(center.getId());
+                    if (edges.size() >= 2) {
+                        for (int i = 0; i < edges.size(); i++) {
+                            for (int j = i + 1; j < edges.size(); j++) {
+                                Edge e1 = edges.get(i);
+                                Edge e2 = edges.get(j);
                                 
-                                // Make sure it provides a length benefit
-                                int oldLen = e1.getLength() + e2.getLength();
-                                int newLen = dist(p1, fermatPoint) + dist(p2, fermatPoint) + dist(center, fermatPoint);
+                                City p1 = graph.getCity(e1.getOtherId(center.getId()));
+                                City p2 = graph.getCity(e2.getOtherId(center.getId()));
                                 
-                                if (newLen < oldLen - 5) { // Threshold to avoid infinitesimal float issues
-                                    // Make new Steiner City
-                                    City steiner = new City(steinerIdCounter++, "Steiner_" + steinerIdCounter, fermatPoint[0], fermatPoint[1], "Auxiliary routing node");
-                                    graph.addCity(steiner);
-                                    cities.add(steiner);
+                                double angle = calculateAngle(p1, center, p2);
+                                if (angle < 120.0 && angle > 1.0) {
+                                    int[] fermatPoint = computeFermatPoint(p1, center, p2);
                                     
-                                    // Update MST graph
-                                    mstEdges.remove(e1);
-                                    mstEdges.remove(e2);
+                                    int oldLen = e1.getLength() + e2.getLength();
+                                    int newLen = dist(p1, fermatPoint) + dist(p2, fermatPoint) + dist(center, fermatPoint);
                                     
-                                    Edge ne1 = new Edge(p1.getId(), steiner.getId());
-                                    Edge ne2 = new Edge(p2.getId(), steiner.getId());
-                                    Edge ne3 = new Edge(center.getId(), steiner.getId());
-                                    ne1.setLength(dist(p1, fermatPoint));
-                                    ne2.setLength(dist(p2, fermatPoint));
-                                    ne3.setLength(dist(center, fermatPoint));
-                                    
-                                    mstEdges.add(ne1);
-                                    mstEdges.add(ne2);
-                                    mstEdges.add(ne3);
-                                    
-                                    improved = true;
-                                    break outer;
+                                    if (newLen < oldLen - 5) {
+                                        City steiner = new City(steinerIdCounter++, "Steiner_" + steinerIdCounter, fermatPoint[0], fermatPoint[1], "Auxiliary routing node");
+                                        graph.addCity(steiner);
+                                        cities.add(steiner);
+                                        
+                                        mstEdges.remove(e1);
+                                        mstEdges.remove(e2);
+                                        
+                                        Edge ne1 = new Edge(p1.getId(), steiner.getId());
+                                        Edge ne2 = new Edge(p2.getId(), steiner.getId());
+                                        Edge ne3 = new Edge(center.getId(), steiner.getId());
+                                        ne1.setLength(dist(p1, fermatPoint));
+                                        ne2.setLength(dist(p2, fermatPoint));
+                                        ne3.setLength(dist(center, fermatPoint));
+                                        
+                                        mstEdges.add(ne1);
+                                        mstEdges.add(ne2);
+                                        mstEdges.add(ne3);
+                                        
+                                        improved = true;
+                                        break outer;
+                                    }
                                 }
                             }
                         }
                     }
                 }
+            } while (improved);
+            
+            int totalL = 0;
+            for (Edge e : mstEdges) {
+                e.setSteiner(true);
+                if (!graph.addEdge(e)) {
+                    throw new IllegalStateException("Failed to insert Steiner edge: " + e.getSourceId() + " <-> " + e.getTargetId());
+                }
+                totalL += e.getLength();
             }
-        } while (improved);
-        
-        int totalL = 0;
-        // Apply final edges to graph
-        for (Edge e : mstEdges) {
-            e.setSteiner(true); // color it specially
-            graph.addEdge(e);
-            totalL += e.getLength(); // use already set length
+            
+            logger.accept("Steiner tree approximation built! Total length: " + totalL);
+        } catch (Exception ex) {
+            // Restore the original graph state on failure
+            graph.clearAllVirtualAndHighlightedEdges();
+            logger.accept("Steiner tree construction failed: " + ex.getMessage() + ". Graph restored.");
         }
-        
-        logger.accept("Steiner tree approximation built! Total length: " + totalL);
     }
     
     private static List<Edge> computeGeometricMST(List<City> cities) {
@@ -596,8 +634,11 @@ public class AlgorithmEngine {
         
         double step = 50.0;
         double minSum = sumDist(bestX, bestY, p1, p2, p3);
+        int iterations = 0;
+        int maxIterations = 1000;
         
-        while (step > 0.1) {
+        while (step > 0.1 && iterations < maxIterations) {
+            iterations++;
             boolean found = false;
             double[][] dirs = {{1,0}, {-1,0}, {0,1}, {0,-1}, {1,1}, {-1,-1}, {1,-1}, {-1,1}};
             for (double[] d : dirs) {

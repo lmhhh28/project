@@ -112,7 +112,6 @@ public class GraphCanvas extends JPanel {
                 g2d.setStroke(new BasicStroke(2.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, dash, 0.0f));
             } else if (e.isSteiner()) {
                 g2d.setColor(Color.ORANGE);
-                // g2d.setStroke(new BasicStroke(2.0f));
                 float[] dash = {5.0f};
                 g2d.setStroke(new BasicStroke(2.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, dash, 0.0f));
             } else {

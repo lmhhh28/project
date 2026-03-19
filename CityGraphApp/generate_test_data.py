@@ -10,7 +10,7 @@ def generate_data(num_cities, num_edges, output_file, max_coord=400):
         x = random.randint(-max_coord, max_coord)
         y = random.randint(-max_coord, max_coord)
         name = f"City_{i}"
-        desc = f"Random_generated_city_{i}"
+        desc = f"city_{i}"
         cities.append((i, name, x, y, desc))
 
     # Generate Edges
@@ -47,7 +47,9 @@ def generate_data(num_cities, num_edges, output_file, max_coord=400):
             
         f.write("[EDGES]\n")
         for e in edges:
-            f.write(f"{e[0]},{e[1]},0\n") # Length is 0, backend recalculates it
+            # Length is set to 0 as a convention; the Java backend (GraphState.addEdge)
+            # automatically recalculates the Euclidean distance from city coordinates.
+            f.write(f"{e[0]},{e[1]},0\n")
 
     print(f"✅ 成功生成测试数据集: {output_file}")
     print(f"📊 统计信息: {num_cities} 个城市节点, {len(edges)} 条通信线路.")

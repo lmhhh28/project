@@ -26,9 +26,8 @@ public class FileManager {
             writer.write("[CITIES]");
             writer.newLine();
             for (City city : graph.getCities()) {
-                // Escape commas in name and description to prevent parsing errors
-                String name = city.getName() != null ? city.getName().replace(",", "，") : "";
-                String desc = city.getDescription() != null ? city.getDescription().replace(",", "，") : "";
+                String name = escapeCsv(city.getName());
+                String desc = escapeCsv(city.getDescription());
                 writer.write(String.format("%d,%s,%d,%d,%s", 
                     city.getId(), name, city.getX(), city.getY(), desc));
                 writer.newLine();
@@ -47,10 +46,25 @@ public class FileManager {
     }
 
     /**
-     * Loads the GraphState from the specified file.
+     * Result of loading a graph, containing the graph and any parse warnings.
      */
-    public static GraphState loadGraph(String filePath) throws IOException {
+    public static class LoadResult {
+        public final GraphState graph;
+        public final java.util.List<String> warnings;
+        
+        public LoadResult(GraphState graph, java.util.List<String> warnings) {
+            this.graph = graph;
+            this.warnings = warnings;
+        }
+    }
+
+    /**
+     * Loads the GraphState from the specified file.
+     * Returns a LoadResult containing the graph and any parse warnings.
+     */
+    public static LoadResult loadGraph(String filePath) throws IOException {
         GraphState graph = new GraphState();
+        java.util.List<String> warnings = new java.util.ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
             String line;
             boolean readingCities = false;
@@ -71,7 +85,7 @@ public class FileManager {
                 }
 
                 if (readingCities) {
-                    String[] parts = line.split(",", 5);
+                    String[] parts = parseCsvLine(line);
                     if (parts.length >= 4) {
                         try {
                             int id = Integer.parseInt(parts[0]);
@@ -81,7 +95,7 @@ public class FileManager {
                             String desc = parts.length > 4 ? parts[4] : "";
                             graph.addCity(new City(id, name, x, y, desc));
                         } catch (NumberFormatException e) {
-                            System.err.println("Error parsing city row: " + line);
+                            warnings.add("跳过无效的城市行: " + line);
                         }
                     }
                 } else if (readingEdges) {
@@ -92,12 +106,43 @@ public class FileManager {
                             int tgt = Integer.parseInt(parts[1]);
                             graph.addEdge(new Edge(src, tgt));
                         } catch (NumberFormatException e) {
-                            System.err.println("Error parsing edge row: " + line);
+                            warnings.add("跳过无效的线路行: " + line);
                         }
                     }
                 }
             }
         }
-        return graph;
+        return new LoadResult(graph, warnings);
+    }
+
+    private static String escapeCsv(String value) {
+        if (value == null) return "";
+        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
+    }
+
+    private static String[] parseCsvLine(String line) {
+        java.util.List<String> tokens = new java.util.ArrayList<>();
+        StringBuilder sb = new StringBuilder();
+        boolean inQuotes = false;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == '"') {
+                if (inQuotes && i + 1 < line.length() && line.charAt(i+1) == '"') {
+                    sb.append('"'); i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (c == ',' && !inQuotes) {
+                tokens.add(sb.toString());
+                sb.setLength(0);
+            } else {
+                sb.append(c);
+            }
+        }
+        tokens.add(sb.toString());
+        return tokens.toArray(new String[0]);
     }
 }

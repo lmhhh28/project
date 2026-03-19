@@ -8,6 +8,7 @@ import java.util.*;
 public class GraphState {
     private Map<Integer, City> cities;
     private List<Edge> edges;
+    private Set<Edge> edgeSet; // O(1) duplicate check
     
     // Backup for original edges destroyed during Steiner generation
     private List<Edge> backedUpEdges;
@@ -20,6 +21,7 @@ public class GraphState {
     public GraphState() {
         this.cities = new HashMap<>();
         this.edges = new ArrayList<>();
+        this.edgeSet = new HashSet<>();
         this.backedUpEdges = new ArrayList<>();
         this.adjacencyList = new HashMap<>();
     }
@@ -60,6 +62,7 @@ public class GraphState {
                 Edge e = iterator.next();
                 if (e.getSourceId() == id || e.getTargetId() == id) {
                     iterator.remove();
+                    edgeSet.remove(e);
                     // Also remove from other city's adjacency list
                     int otherId = e.getOtherId(id);
                     if (adjacencyList.containsKey(otherId)) {
@@ -79,7 +82,7 @@ public class GraphState {
         if (edge.getSourceId() == edge.getTargetId()) {
             return false;
         }
-        if (edges.contains(edge)) {
+        if (edgeSet.contains(edge)) {
             return false; // already exists
         }
 
@@ -93,21 +96,25 @@ public class GraphState {
         }
 
         edges.add(edge);
+        edgeSet.add(edge);
         adjacencyList.computeIfAbsent(edge.getSourceId(), k -> new ArrayList<>()).add(edge);
         adjacencyList.computeIfAbsent(edge.getTargetId(), k -> new ArrayList<>()).add(edge);
         return true;
     }
 
-    public void removeEdge(int sourceId, int targetId) {
+    public boolean removeEdge(int sourceId, int targetId) {
         Edge temp = new Edge(sourceId, targetId);
         if (edges.remove(temp)) {
+            edgeSet.remove(temp);
             if (adjacencyList.containsKey(sourceId)) {
                 adjacencyList.get(sourceId).removeIf(e -> e.equals(temp));
             }
             if (adjacencyList.containsKey(targetId)) {
                 adjacencyList.get(targetId).removeIf(e -> e.equals(temp));
             }
+            return true;
         }
+        return false;
     }
     
     public void clearAllVirtualAndHighlightedEdges() {
@@ -125,17 +132,21 @@ public class GraphState {
         // Removed Steiner cities if any
         cities.entrySet().removeIf(entry -> entry.getValue().getName().startsWith("Steiner_"));
         
-        // Repopulate adjacency lists completely to avoid stale refs
+        // Rebuild indexes to avoid stale refs
         rebuildAdjacencyList();
     }
     
     public void backupOriginalEdges() {
-        if (backedUpEdges.isEmpty()) {
-            for (Edge e : edges) {
-                if (!e.isSteiner() && !e.isVirtual()) {
-                    backedUpEdges.add(e);
-                }
+        List<Edge> snapshot = new ArrayList<>();
+        for (Edge e : edges) {
+            if (!e.isSteiner() && !e.isVirtual()) {
+                snapshot.add(e);
             }
+        }
+        // If we are currently looking at a generated Steiner-only graph, keep the last real snapshot.
+        if (!snapshot.isEmpty() || backedUpEdges.isEmpty()) {
+            backedUpEdges.clear();
+            backedUpEdges.addAll(snapshot);
         }
     }
     
@@ -146,13 +157,15 @@ public class GraphState {
     }
     
     public void rebuildAdjacencyList() {
+        edgeSet.clear();
         adjacencyList.clear();
         for (Integer id : cities.keySet()) {
             adjacencyList.put(id, new ArrayList<>());
         }
         for (Edge e : edges) {
-            adjacencyList.get(e.getSourceId()).add(e);
-            adjacencyList.get(e.getTargetId()).add(e);
+            edgeSet.add(e);
+            adjacencyList.computeIfAbsent(e.getSourceId(), k -> new ArrayList<>()).add(e);
+            adjacencyList.computeIfAbsent(e.getTargetId(), k -> new ArrayList<>()).add(e);
         }
     }
 
@@ -186,6 +199,7 @@ public class GraphState {
     public void clear() {
         cities.clear();
         edges.clear();
+        edgeSet.clear();
         backedUpEdges.clear();
         adjacencyList.clear();
         nextCityId = 1;

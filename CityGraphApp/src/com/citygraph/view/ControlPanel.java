@@ -164,6 +164,10 @@ public class ControlPanel extends JPanel {
             int x = Integer.parseInt(cityXField.getText().trim());
             int y = Integer.parseInt(cityYField.getText().trim());
             String desc = cityDescField.getText().trim();
+            if (name.isEmpty()) {
+                log("城市名称不能为空，请输入名称。");
+                return;
+            }
             if (action.equals("ADD")) {
                 controller.addCity(id, name, x, y, desc);
             } else {
