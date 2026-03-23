@@ -3,7 +3,7 @@ import sys
 import argparse
 import math
 
-def generate_data(num_cities, num_edges, output_file, max_coord=400):
+def generate_data(num_cities, num_edges, output_file, max_coord=350):
     cities = []
     # Generate Cities
     for i in range(1, num_cities + 1):

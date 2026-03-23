@@ -22,7 +22,7 @@ public class MainFrame extends JFrame implements AppController {
     private LogWindow logWindow;
 
     public MainFrame() {
-        super("城市通信网络规划系统");
+        super("城市通信网络规划");
         this.graph = new GraphState();
         
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);

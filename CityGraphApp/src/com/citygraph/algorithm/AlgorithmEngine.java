@@ -624,45 +624,61 @@ public class AlgorithmEngine {
         return Math.toDegrees(Math.acos(val));
     }
     
-    // Find numeric Fermat point of a triangle p1-center-p2
-    // We can use a simple gradient descent or grid search for the optimal geometric median
-    // since we use integer coordinates, exact analytical solution implies complex numbers
-    // Let's use a simple bounded numerical search for robustness
+    // Compute Fermat point using exact geometric formula:
+    // barycentric weights are a/sin(A+60), b/sin(B+60), c/sin(C+60),
+    // where a,b,c are side lengths opposite to vertices A,B,C.
     private static int[] computeFermatPoint(City p1, City p2, City p3) {
-        double bestX = (p1.getX() + p2.getX() + p3.getX()) / 3.0;
-        double bestY = (p1.getY() + p2.getY() + p3.getY()) / 3.0;
-        
-        double step = 50.0;
-        double minSum = sumDist(bestX, bestY, p1, p2, p3);
-        int iterations = 0;
-        int maxIterations = 1000;
-        
-        while (step > 0.1 && iterations < maxIterations) {
-            iterations++;
-            boolean found = false;
-            double[][] dirs = {{1,0}, {-1,0}, {0,1}, {0,-1}, {1,1}, {-1,-1}, {1,-1}, {-1,1}};
-            for (double[] d : dirs) {
-                double nx = bestX + d[0] * step;
-                double ny = bestY + d[1] * step;
-                double s = sumDist(nx, ny, p1, p2, p3);
-                if (s < minSum) {
-                    minSum = s;
-                    bestX = nx;
-                    bestY = ny;
-                    found = true;
-                }
-            }
-            if (!found) {
-                step /= 2.0;
-            }
+        double x1 = p1.getX(), y1 = p1.getY();
+        double x2 = p2.getX(), y2 = p2.getY();
+        double x3 = p3.getX(), y3 = p3.getY();
+
+        double a = Math.hypot(x2 - x3, y2 - y3); // |BC| opposite A
+        double b = Math.hypot(x3 - x1, y3 - y1); // |CA| opposite B
+        double c = Math.hypot(x1 - x2, y1 - y2); // |AB| opposite C
+
+        // Degenerate triangle fallback.
+        if (a == 0 || b == 0 || c == 0) {
+            return new int[]{(int) Math.round((x1 + x2 + x3) / 3.0), (int) Math.round((y1 + y2 + y3) / 3.0)};
         }
-        
-        return new int[]{(int)Math.round(bestX), (int)Math.round(bestY)};
+
+        double cosA = clamp((b * b + c * c - a * a) / (2.0 * b * c));
+        double cosB = clamp((c * c + a * a - b * b) / (2.0 * c * a));
+        double cosC = clamp((a * a + b * b - c * c) / (2.0 * a * b));
+
+        // For any angle >= 120°, Fermat point is exactly that vertex.
+        if (cosA <= -0.5) return new int[]{(int) Math.round(x1), (int) Math.round(y1)};
+        if (cosB <= -0.5) return new int[]{(int) Math.round(x2), (int) Math.round(y2)};
+        if (cosC <= -0.5) return new int[]{(int) Math.round(x3), (int) Math.round(y3)};
+
+        double sinA = Math.sqrt(Math.max(0.0, 1.0 - cosA * cosA));
+        double sinB = Math.sqrt(Math.max(0.0, 1.0 - cosB * cosB));
+        double sinC = Math.sqrt(Math.max(0.0, 1.0 - cosC * cosC));
+
+        double sqrt3Over2 = Math.sqrt(3.0) / 2.0;
+        double sinA60 = 0.5 * sinA + sqrt3Over2 * cosA;
+        double sinB60 = 0.5 * sinB + sqrt3Over2 * cosB;
+        double sinC60 = 0.5 * sinC + sqrt3Over2 * cosC;
+
+        // Numerical safety fallback (should not happen for valid acute/obtuse non-degenerate triangles).
+        if (sinA60 <= 1e-12 || sinB60 <= 1e-12 || sinC60 <= 1e-12) {
+            return new int[]{(int) Math.round((x1 + x2 + x3) / 3.0), (int) Math.round((y1 + y2 + y3) / 3.0)};
+        }
+
+        double w1 = a / sinA60;
+        double w2 = b / sinB60;
+        double w3 = c / sinC60;
+        double sumW = w1 + w2 + w3;
+
+        if (sumW <= 1e-12) {
+            return new int[]{(int) Math.round((x1 + x2 + x3) / 3.0), (int) Math.round((y1 + y2 + y3) / 3.0)};
+        }
+
+        double fx = (w1 * x1 + w2 * x2 + w3 * x3) / sumW;
+        double fy = (w1 * y1 + w2 * y2 + w3 * y3) / sumW;
+        return new int[]{(int) Math.round(fx), (int) Math.round(fy)};
     }
-    
-    private static double sumDist(double x, double y, City p1, City p2, City p3) {
-        return Math.sqrt(Math.pow(x-p1.getX(), 2) + Math.pow(y-p1.getY(), 2)) +
-               Math.sqrt(Math.pow(x-p2.getX(), 2) + Math.pow(y-p2.getY(), 2)) +
-               Math.sqrt(Math.pow(x-p3.getX(), 2) + Math.pow(y-p3.getY(), 2));
+
+    private static double clamp(double v) {
+        return Math.max(-1.0, Math.min(1.0, v));
     }
 }
