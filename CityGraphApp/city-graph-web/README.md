@@ -31,6 +31,19 @@ npm run dev
 
 默认接口地址为 `http://localhost:8080/api/v1`。
 
+## Docker 部署
+
+项目根目录下提供了 `docker-compose.yml`。当前方案不会把前端容器暴露成容器内 `80` 端口给外部 Nginx 依赖，而是：
+
+- 后端绑定到 `127.0.0.1:8080`
+- 前端静态服务绑定到 `127.0.0.1:5173`
+
+这样你可以直接用自己现有的 Nginx 反向代理到这两个本地端口。
+
+示例配置见：
+
+- `/Users/lmhhh/Desktop/project/CityGraphApp/nginx/city-graph.conf.example`
+
 ## 环境变量
 
 复制 `.env.example` 后按需修改：
