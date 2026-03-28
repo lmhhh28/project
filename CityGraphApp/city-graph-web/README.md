@@ -35,14 +35,28 @@ npm run dev
 
 项目根目录下提供了 `docker-compose.yml`。当前方案不会把前端容器暴露成容器内 `80` 端口给外部 Nginx 依赖，而是：
 
-- 后端绑定到 `127.0.0.1:8080`
-- 前端静态服务绑定到 `127.0.0.1:5173`
+- 后端默认绑定到 `127.0.0.1:18080`
+- 前端静态服务默认绑定到 `127.0.0.1:15173`
 
 这样你可以直接用自己现有的 Nginx 反向代理到这两个本地端口。
 
 示例配置见：
 
 - `/Users/lmhhh/Desktop/project/CityGraphApp/nginx/city-graph.conf.example`
+
+如果需要改端口，可以在项目根目录创建 `.env`：
+
+```bash
+cp /Users/lmhhh/Desktop/project/CityGraphApp/.env.example /Users/lmhhh/Desktop/project/CityGraphApp/.env
+```
+
+并修改：
+
+```env
+CITY_GRAPH_BIND_HOST=127.0.0.1
+CITY_GRAPH_API_HOST_PORT=18080
+CITY_GRAPH_WEB_HOST_PORT=15173
+```
 
 ## 环境变量
 
