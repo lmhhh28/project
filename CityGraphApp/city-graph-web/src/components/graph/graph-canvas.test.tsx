@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { GraphCanvas } from "@/components/graph/graph-canvas";
-import type { Graph } from "@/lib/api/types";
+import { EMPTY_GRAPH, type Graph } from "@/lib/api/types";
 import type { GraphLegendState, GraphViewport } from "@/types/ui";
 
 const SAMPLE_GRAPH: Graph = {
@@ -95,5 +95,28 @@ describe("GraphCanvas", () => {
     expect(screen.queryByText("70")).not.toBeInTheDocument();
     expect(screen.queryByText("140")).not.toBeInTheDocument();
     expect(screen.getByText("150")).toBeInTheDocument();
+  });
+
+  it("shows only empty state and no canvas interactions when graph is empty", () => {
+    render(
+      <GraphCanvas
+        graph={EMPTY_GRAPH}
+        selectedEntity={{ type: "none" }}
+        legend={DEFAULT_LEGEND}
+        viewport={DEFAULT_VIEWPORT}
+        loading={false}
+        onSelectCity={vi.fn()}
+        onSelectEdge={vi.fn()}
+        onClearSelection={vi.fn()}
+        onViewportChange={vi.fn()}
+        onResetViewport={vi.fn()}
+        onToggleLegend={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/当前图为空/)).toBeInTheDocument();
+    expect(document.querySelector("svg.graph-svg")).not.toBeInTheDocument();
+    expect(screen.queryByText("图统计")).not.toBeInTheDocument();
+    expect(screen.queryByText("图层与视图")).not.toBeInTheDocument();
   });
 });

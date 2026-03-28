@@ -330,6 +330,9 @@ export function GraphCanvas({
   const { ref, width, height } = useElementSize<HTMLDivElement>();
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [statsCollapsed, setStatsCollapsed] = useState(false);
+  const [legendCollapsed, setLegendCollapsed] = useState(false);
+  const hasRenderableGraph = graph.cities.length > 0 || graph.edges.length > 0;
 
   const screenX = (x: number) => width / 2 + viewport.offsetX + x * viewport.zoom;
   const screenY = (y: number) => height / 2 + viewport.offsetY - y * viewport.zoom;
@@ -340,7 +343,7 @@ export function GraphCanvas({
 
   useEffect(() => {
     const container = ref.current;
-    if (!container) {
+    if (!container || !hasRenderableGraph) {
       return undefined;
     }
 
@@ -374,7 +377,7 @@ export function GraphCanvas({
     return () => {
       container.removeEventListener("wheel", handleWheel);
     };
-  }, [height, onViewportChange, ref, width]);
+  }, [hasRenderableGraph, height, onViewportChange, ref, width]);
 
   const shouldShowEdge = (variant: ReturnType<typeof getEdgeVariant>) => {
     if (variant === "highlighted") {
@@ -486,6 +489,10 @@ export function GraphCanvas({
   };
 
   const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!hasRenderableGraph) {
+      return;
+    }
+
     if ((event.target as HTMLElement).closest("[data-entity='city'], [data-entity='edge']")) {
       return;
     }
@@ -495,6 +502,10 @@ export function GraphCanvas({
   };
 
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!hasRenderableGraph) {
+      return;
+    }
+
     if (!dragRef.current) {
       return;
     }
@@ -553,13 +564,28 @@ export function GraphCanvas({
 
   return (
     <div className="canvas-shell">
-      <div className="graph-overlay graph-overlay--stats">
-        <GraphStats summary={graph.summary} />
-      </div>
+      {!loading && hasRenderableGraph ? (
+        <>
+          <div className="graph-overlay graph-overlay--stats">
+            <GraphStats
+              summary={graph.summary}
+              collapsed={statsCollapsed}
+              onToggleCollapse={() => setStatsCollapsed((current) => !current)}
+            />
+          </div>
 
-      <div className="graph-overlay graph-overlay--legend">
-        <GraphLegend legend={legend} onToggle={onToggleLegend} onResetViewport={onResetViewport} onFitViewport={fitViewport} />
-      </div>
+          <div className="graph-overlay graph-overlay--legend">
+            <GraphLegend
+              legend={legend}
+              collapsed={legendCollapsed}
+              onToggle={onToggleLegend}
+              onToggleCollapse={() => setLegendCollapsed((current) => !current)}
+              onResetViewport={onResetViewport}
+              onFitViewport={fitViewport}
+            />
+          </div>
+        </>
+      ) : null}
 
       <div ref={ref} className="canvas-container">
         {loading ? (
@@ -568,7 +594,7 @@ export function GraphCanvas({
           </div>
         ) : null}
 
-        {graph.cities.length === 0 && !loading ? (
+        {!hasRenderableGraph && !loading ? (
           <div className="graph-empty">
             <Empty
               description={
@@ -580,172 +606,190 @@ export function GraphCanvas({
           </div>
         ) : null}
 
-        <svg
-          className={`graph-svg${isDragging ? " is-dragging" : ""}`}
-          viewBox={`0 0 ${Math.max(width, 1)} ${Math.max(height, 1)}`}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
-          onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              onClearSelection();
-            }
-          }}
-        >
-          <g>{gridLines}</g>
-
-          <g>
-            {graph.edges.map((edge) => {
-              const source = getCityById(graph, edge.sourceId);
-              const target = getCityById(graph, edge.targetId);
-
-              if (!source || !target) {
-                return null;
+        {hasRenderableGraph ? (
+          <svg
+            className={`graph-svg${isDragging ? " is-dragging" : ""}`}
+            viewBox={`0 0 ${Math.max(width, 1)} ${Math.max(height, 1)}`}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                onClearSelection();
               }
+            }}
+          >
+            <g>{gridLines}</g>
 
-              if (!legend.showSteinerCities && (isSteinerCity(source) || isSteinerCity(target))) {
-                return null;
-              }
+            <g>
+              {graph.edges.map((edge) => {
+                const source = getCityById(graph, edge.sourceId);
+                const target = getCityById(graph, edge.targetId);
 
-              const variant = getEdgeVariant(edge);
-              if (!shouldShowEdge(variant)) {
-                return null;
-              }
+                if (!source || !target) {
+                  return null;
+                }
 
-              const isSelected = selectedEntity.type === "edge" && selectedEntity.edgeKey === edgeKey(edge.sourceId, edge.targetId);
-              const x1 = screenX(source.x);
-              const y1 = screenY(source.y);
-              const x2 = screenX(target.x);
-              const y2 = screenY(target.y);
-              const stroke =
-                variant === "highlighted"
-                  ? "#d4380d"
-                  : variant === "virtual"
-                    ? "#1677ff"
-                    : variant === "steiner"
-                      ? "#d48806"
-                      : "#5c6b8a";
-              const strokeDasharray = variant === "virtual" ? "10 8" : variant === "steiner" ? "7 6" : undefined;
-              const strokeWidth = isSelected ? 4.5 : variant === "highlighted" ? 3.5 : 2;
-              const labelPlacement = edgePlacementMap.get(edgeKey(edge.sourceId, edge.targetId));
+                if (!legend.showSteinerCities && (isSteinerCity(source) || isSteinerCity(target))) {
+                  return null;
+                }
 
-              return (
-                <g key={edgeKey(edge.sourceId, edge.targetId)}>
-                  <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={strokeDasharray} />
-                  <line
-                    data-entity="edge"
-                    x1={x1}
-                    y1={y1}
-                    x2={x2}
-                    y2={y2}
-                    stroke="transparent"
-                    strokeWidth={16}
+                const variant = getEdgeVariant(edge);
+                if (!shouldShowEdge(variant)) {
+                  return null;
+                }
+
+                const isSelected =
+                  selectedEntity.type === "edge" && selectedEntity.edgeKey === edgeKey(edge.sourceId, edge.targetId);
+                const x1 = screenX(source.x);
+                const y1 = screenY(source.y);
+                const x2 = screenX(target.x);
+                const y2 = screenY(target.y);
+                const stroke =
+                  variant === "highlighted"
+                    ? "#d4380d"
+                    : variant === "virtual"
+                      ? "#1677ff"
+                      : variant === "steiner"
+                        ? "#d48806"
+                        : "#5c6b8a";
+                const strokeDasharray = variant === "virtual" ? "10 8" : variant === "steiner" ? "7 6" : undefined;
+                const strokeWidth = isSelected ? 4.5 : variant === "highlighted" ? 3.5 : 2;
+                const labelPlacement = edgePlacementMap.get(edgeKey(edge.sourceId, edge.targetId));
+
+                return (
+                  <g key={edgeKey(edge.sourceId, edge.targetId)}>
+                    <line
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke={stroke}
+                      strokeWidth={strokeWidth}
+                      strokeDasharray={strokeDasharray}
+                    />
+                    <line
+                      data-entity="edge"
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke="transparent"
+                      strokeWidth={16}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectEdge(edgeKey(edge.sourceId, edge.targetId));
+                      }}
+                    />
+                    {legend.showLabels && labelPlacement ? (
+                      <g>
+                        <rect
+                          x={labelPlacement.rect.x}
+                          y={labelPlacement.rect.y}
+                          width={labelPlacement.rect.width}
+                          height={labelPlacement.rect.height}
+                          rx={8}
+                          fill="rgba(255, 255, 255, 0.84)"
+                          stroke="rgba(148, 163, 184, 0.45)"
+                          strokeWidth={1}
+                        />
+                        <text
+                          x={labelPlacement.textX}
+                          y={labelPlacement.textY}
+                          textAnchor={labelPlacement.anchor}
+                          dominantBaseline="middle"
+                          fontSize={EDGE_LABEL_FONT_SIZE}
+                          fill="#334155"
+                          style={{ userSelect: "none", pointerEvents: "none" }}
+                        >
+                          {edge.length}
+                        </text>
+                      </g>
+                    ) : null}
+                  </g>
+                );
+              })}
+            </g>
+
+            <g>
+              {graph.cities.map((city) => {
+                const steinerCity = isSteinerCity(city);
+                if (steinerCity && !legend.showSteinerCities) {
+                  return null;
+                }
+
+                const isSelected = selectedEntity.type === "city" && selectedEntity.cityId === city.id;
+                const x = screenX(city.x);
+                const y = screenY(city.y);
+                const labelPlacement = cityPlacementMap.get(city.id);
+
+                return (
+                  <g
+                    key={city.id}
+                    data-entity="city"
                     onClick={(event) => {
                       event.stopPropagation();
-                      onSelectEdge(edgeKey(edge.sourceId, edge.targetId));
+                      onSelectCity(city.id);
                     }}
-                  />
-                  {legend.showLabels && labelPlacement ? (
-                    <g>
+                    style={{ cursor: "pointer" }}
+                  >
+                    {steinerCity ? (
                       <rect
-                        x={labelPlacement.rect.x}
-                        y={labelPlacement.rect.y}
-                        width={labelPlacement.rect.width}
-                        height={labelPlacement.rect.height}
-                        rx={8}
-                        fill="rgba(255, 255, 255, 0.84)"
-                        stroke="rgba(148, 163, 184, 0.45)"
-                        strokeWidth={1}
+                        x={x - 7}
+                        y={y - 7}
+                        width={14}
+                        height={14}
+                        rx={3}
+                        fill={isSelected ? "#faad14" : "#ffa940"}
+                        stroke="#ad6800"
+                        strokeWidth={isSelected ? 3 : 1.5}
                       />
-                      <text
-                        x={labelPlacement.textX}
-                        y={labelPlacement.textY}
-                        textAnchor={labelPlacement.anchor}
-                        dominantBaseline="middle"
-                        fontSize={EDGE_LABEL_FONT_SIZE}
-                        fill="#334155"
-                        style={{ userSelect: "none", pointerEvents: "none" }}
-                      >
-                        {edge.length}
-                      </text>
-                    </g>
-                  ) : null}
-                </g>
-              );
-            })}
-          </g>
+                    ) : (
+                      <>
+                        <circle cx={x} cy={y} r={isSelected ? 14 : 11} fill="rgba(22, 119, 255, 0.16)" />
+                        <circle
+                          cx={x}
+                          cy={y}
+                          r={10}
+                          fill={isSelected ? "#0958d9" : "#1677ff"}
+                          stroke="#102a56"
+                          strokeWidth={1.5}
+                        />
+                      </>
+                    )}
 
-          <g>
-            {graph.cities.map((city) => {
-              const steinerCity = isSteinerCity(city);
-              if (steinerCity && !legend.showSteinerCities) {
-                return null;
-              }
-
-              const isSelected = selectedEntity.type === "city" && selectedEntity.cityId === city.id;
-              const x = screenX(city.x);
-              const y = screenY(city.y);
-              const labelPlacement = cityPlacementMap.get(city.id);
-
-              return (
-                <g
-                  key={city.id}
-                  data-entity="city"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onSelectCity(city.id);
-                  }}
-                  style={{ cursor: "pointer" }}
-                >
-                  {steinerCity ? (
-                    <rect
-                      x={x - 7}
-                      y={y - 7}
-                      width={14}
-                      height={14}
-                      rx={3}
-                      fill={isSelected ? "#faad14" : "#ffa940"}
-                      stroke="#ad6800"
-                      strokeWidth={isSelected ? 3 : 1.5}
-                    />
-                  ) : (
-                    <>
-                      <circle cx={x} cy={y} r={isSelected ? 14 : 11} fill="rgba(22, 119, 255, 0.16)" />
-                      <circle cx={x} cy={y} r={10} fill={isSelected ? "#0958d9" : "#1677ff"} stroke="#102a56" strokeWidth={1.5} />
-                    </>
-                  )}
-
-                  {legend.showLabels && labelPlacement ? (
-                    <g>
-                      <rect
-                        x={labelPlacement.placement.rect.x}
-                        y={labelPlacement.placement.rect.y}
-                        width={labelPlacement.placement.rect.width}
-                        height={labelPlacement.placement.rect.height}
-                        rx={8}
-                        fill="rgba(255, 255, 255, 0.88)"
-                        stroke={isSelected ? "rgba(22, 119, 255, 0.48)" : "rgba(148, 163, 184, 0.4)"}
-                        strokeWidth={1}
-                      />
-                      <text
-                        x={labelPlacement.placement.textX}
-                        y={labelPlacement.placement.textY}
-                        textAnchor={labelPlacement.placement.anchor}
-                        dominantBaseline="middle"
-                        fontSize={CITY_LABEL_FONT_SIZE}
-                        fill="#102a56"
-                        style={{ userSelect: "none" }}
-                      >
-                        {labelPlacement.label}
-                      </text>
-                    </g>
-                  ) : null}
-                </g>
-              );
-            })}
-          </g>
-        </svg>
+                    {legend.showLabels && labelPlacement ? (
+                      <g>
+                        <rect
+                          x={labelPlacement.placement.rect.x}
+                          y={labelPlacement.placement.rect.y}
+                          width={labelPlacement.placement.rect.width}
+                          height={labelPlacement.placement.rect.height}
+                          rx={8}
+                          fill="rgba(255, 255, 255, 0.88)"
+                          stroke={isSelected ? "rgba(22, 119, 255, 0.48)" : "rgba(148, 163, 184, 0.4)"}
+                          strokeWidth={1}
+                        />
+                        <text
+                          x={labelPlacement.placement.textX}
+                          y={labelPlacement.placement.textY}
+                          textAnchor={labelPlacement.placement.anchor}
+                          dominantBaseline="middle"
+                          fontSize={CITY_LABEL_FONT_SIZE}
+                          fill="#102a56"
+                          style={{ userSelect: "none" }}
+                        >
+                          {labelPlacement.label}
+                        </text>
+                      </g>
+                    ) : null}
+                  </g>
+                );
+              })}
+            </g>
+          </svg>
+        ) : null}
       </div>
     </div>
   );
