@@ -71,6 +71,10 @@
   padding: 0;
 }
 
+.workspace-canvas-card .ant-card-body {
+  height: 100%;
+}
+
 .workspace-side-column {
   min-height: 0;
   display: flex;
@@ -158,14 +162,16 @@
 
 .canvas-shell {
   position: relative;
-  min-height: 620px;
+  height: 100%;
+  min-height: clamp(620px, 68vh, 920px);
   overflow: hidden;
   padding: 14px;
+  display: flex;
 }
 
 .canvas-container {
-  height: 100%;
-  min-height: 620px;
+  flex: 1;
+  min-height: 0;
   border-radius: 24px;
   overflow: hidden;
   overscroll-behavior: contain;
