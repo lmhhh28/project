@@ -135,47 +135,53 @@ export function CityPanel({
         width={400}
         forceRender
       >
-        {selectedCity ? (
-          <Form
-            form={editForm}
-            layout="vertical"
-            onFinish={async (values) => {
-              await onUpdateCity(selectedCity.id, {
-                ...values,
-                description: values.description?.trim() ?? "",
-              });
-            }}
-          >
-            <Form.Item label="城市 ID">
-              <Input value={String(selectedCity.id)} disabled />
-            </Form.Item>
-            <Form.Item label="名称" name="name" rules={[{ required: true, message: "请输入城市名称" }]}>
-              <Input />
-            </Form.Item>
-            <Space size={12} style={{ width: "100%" }}>
-              <Form.Item label="X 坐标" name="x" rules={[{ required: true, message: "请输入 X 坐标" }]} style={{ flex: 1 }}>
-                <InputNumber precision={0} style={{ width: "100%" }} />
-              </Form.Item>
-              <Form.Item label="Y 坐标" name="y" rules={[{ required: true, message: "请输入 Y 坐标" }]} style={{ flex: 1 }}>
-                <InputNumber precision={0} style={{ width: "100%" }} />
-              </Form.Item>
-            </Space>
-            <Form.Item label="简介" name="description">
-              <Input.TextArea rows={4} />
-            </Form.Item>
+        <Form
+          form={editForm}
+          layout="vertical"
+          onFinish={async (values) => {
+            if (!selectedCity) {
+              return;
+            }
 
-            <Space>
-              <Button type="primary" htmlType="submit" loading={pendingAction === "updateCity"}>
-                保存修改
-              </Button>
-              <Popconfirm title="确认删除这个城市吗？" onConfirm={() => onRemoveCity(selectedCity.id)}>
-                <Button danger icon={<DeleteOutlined />} loading={pendingAction === "removeCity"}>
-                  删除城市
+            await onUpdateCity(selectedCity.id, {
+              ...values,
+              description: values.description?.trim() ?? "",
+            });
+          }}
+        >
+          {selectedCity ? (
+            <>
+              <Form.Item label="城市 ID">
+                <Input value={String(selectedCity.id)} disabled />
+              </Form.Item>
+              <Form.Item label="名称" name="name" rules={[{ required: true, message: "请输入城市名称" }]}>
+                <Input />
+              </Form.Item>
+              <Space size={12} style={{ width: "100%" }}>
+                <Form.Item label="X 坐标" name="x" rules={[{ required: true, message: "请输入 X 坐标" }]} style={{ flex: 1 }}>
+                  <InputNumber precision={0} style={{ width: "100%" }} />
+                </Form.Item>
+                <Form.Item label="Y 坐标" name="y" rules={[{ required: true, message: "请输入 Y 坐标" }]} style={{ flex: 1 }}>
+                  <InputNumber precision={0} style={{ width: "100%" }} />
+                </Form.Item>
+              </Space>
+              <Form.Item label="简介" name="description">
+                <Input.TextArea rows={4} />
+              </Form.Item>
+
+              <Space>
+                <Button type="primary" htmlType="submit" loading={pendingAction === "updateCity"}>
+                  保存修改
                 </Button>
-              </Popconfirm>
-            </Space>
-          </Form>
-        ) : null}
+                <Popconfirm title="确认删除这个城市吗？" onConfirm={() => onRemoveCity(selectedCity.id)}>
+                  <Button danger icon={<DeleteOutlined />} loading={pendingAction === "removeCity"}>
+                    删除城市
+                  </Button>
+                </Popconfirm>
+              </Space>
+            </>
+          ) : null}
+        </Form>
       </Drawer>
     </div>
   );

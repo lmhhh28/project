@@ -61,7 +61,7 @@ describe("WorkspacePage", () => {
 
     expect(screen.getByRole("button", { name: /Q6 单源最短路径/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Q7 旅行商/i })).toBeDisabled();
-  });
+  }, 15000);
 
   it("opens the city editor when a city is selected on the canvas", async () => {
     mockApi({

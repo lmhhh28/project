@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { createClientId } from "@/lib/id";
 import type { GraphLegendState, GraphViewport, LogSource, SelectedEntity, UiLogEntry } from "@/types/ui";
 
 const DEFAULT_VIEWPORT: GraphViewport = {
@@ -39,7 +40,7 @@ export const useUiStore = create<UiState>((set) => ({
   isHelpOpen: false,
   logs: [
     {
-      id: crypto.randomUUID(),
+      id: createClientId(),
       source: "system",
       level: "info",
       message: "工作台已就绪，等待加载图数据。",
@@ -56,7 +57,7 @@ export const useUiStore = create<UiState>((set) => ({
     set((state) => ({
       logs: [
         {
-          id: crypto.randomUUID(),
+          id: createClientId(),
           createdAt: new Date().toISOString(),
           ...entry,
         },
