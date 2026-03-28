@@ -1,0 +1,31 @@
+services:
+  city-graph-api:
+    build:
+      context: ./city-graph-api
+      dockerfile: Dockerfile
+    image: city-graph-api:latest
+    container_name: city-graph-api
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/v1/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  city-graph-web:
+    build:
+      context: ./city-graph-web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
+    image: city-graph-web:latest
+    container_name: city-graph-web
+    depends_on:
+      city-graph-api:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+    restart: unless-stopped

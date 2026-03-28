@@ -7,9 +7,12 @@ import com.citygraph.model.GraphState;
 import java.util.*;
 import java.util.function.Consumer;
 
+/**
+ * Encapsulates all graph algorithm logic.
+ */
 public class AlgorithmEngine {
 
-    // 按秩合并, 路径压缩
+    // Helper: Union-Find for Kruskal's
     private static class DisjointSet {
         int[] parent;
         int[] rank;
@@ -33,14 +36,16 @@ public class AlgorithmEngine {
         }
     }
 
-    // 检查连通性, 生成补边
+    /**
+     * Q5: Check connectivity and find minimum extra edges to connect all components using Kruskal's.
+     */
     public static void checkConnectivityAndFix(GraphState graph, Consumer<String> logger) {
         if (graph.getCities().isEmpty()) {
             logger.accept("Graph is empty.");
             return;
         }
 
-        // BFS检查连通性
+        // 1. Check Connectivity using BFS
         List<City> cities = new ArrayList<>(graph.getCities());
         Set<Integer> visited = new HashSet<>();
         Queue<Integer> queue = new LinkedList<>();
@@ -52,7 +57,7 @@ public class AlgorithmEngine {
         while (!queue.isEmpty()) {
             int curr = queue.poll();
             for (Edge e : graph.getAdjacentEdges(curr)) {
-                if (e.isVirtual() || e.isSteiner()) continue;
+                if (e.isVirtual() || e.isSteiner()) continue; // Only consider real edges
                 
                 int next = e.getOtherId(curr);
                 if (!visited.contains(next)) {
@@ -69,7 +74,8 @@ public class AlgorithmEngine {
         
         logger.accept("Graph is NOT fully connected. Finding minimum extra edges...");
         
-        // 并查集检查连通分量
+        // 2. Kruskal's algorithm to find minimum edges to connect components
+        // Map city IDs to 0...N-1 index for DisjointSet
         Map<Integer, Integer> idToIndex = new HashMap<>();
         Map<Integer, Integer> indexToId = new HashMap<>();
         int idx = 0;
@@ -81,13 +87,14 @@ public class AlgorithmEngine {
         
         DisjointSet ds = new DisjointSet(cities.size());
         
+        // Union existing real edges
         for (Edge e : graph.getEdges()) {
             if (!e.isVirtual() && !e.isSteiner()) {
                 ds.union(idToIndex.get(e.getSourceId()), idToIndex.get(e.getTargetId()));
             }
         }
         
-        // 遍历非连通补边并排序
+        // Generate all possible non-existing edges and sort by length
         List<Edge> potentialEdges = new ArrayList<>();
         for (int i = 0; i < cities.size(); i++) {
             for (int j = i + 1; j < cities.size(); j++) {
@@ -102,8 +109,6 @@ public class AlgorithmEngine {
         }
         potentialEdges.sort(Comparator.comparingInt(Edge::getLength));
         
-        
-        // 生成补边并检查连通
         List<Edge> addedEdges = new ArrayList<>();
         int totalLength = 0;
         for (Edge e : potentialEdges) {
@@ -121,7 +126,9 @@ public class AlgorithmEngine {
         logger.accept(String.format("Added %d virtual edges. Total length: %d", addedEdges.size(), totalLength));
     }
 
-    // 优先队列的BFS
+    /**
+     * Q6: Dijkstra shortest path from source to all reachable nodes, sorted by distance.
+     */
     public static void findShortestPath(GraphState graph, int sourceId, Consumer<String> logger) {
         if (graph.getCity(sourceId) == null) {
             logger.accept("Source city ID " + sourceId + " not found.");
@@ -147,6 +154,7 @@ public class AlgorithmEngine {
             if (d > dist.get(u)) continue;
             
             for (Edge e : graph.getAdjacentEdges(u)) {
+                // Ignore Steiner nodes for standard path routing unless required
                 if (e.isVirtual() || e.isSteiner()) continue;
                 
                 int v = e.getOtherId(u);
